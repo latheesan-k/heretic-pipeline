@@ -1,27 +1,27 @@
-FROM nvidia/cuda:12.6.3-devel-ubuntu22.04
+FROM nvidia/cuda:12.6.3-runtime-ubuntu22.04
 
-# Avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
-    git curl build-essential cmake python3 python3-pip && \
+    curl python3 python3-pip unzip && \
     rm -rf /var/lib/apt/lists/*
 
-# Make python3 the default
 RUN ln -s /usr/bin/python3 /usr/bin/python
 
-# PyTorch
 RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
 
-# Heretic
 RUN pip install -U heretic-llm
 
-# llama.cpp with CUDA support
-RUN git clone https://github.com/ggerganov/llama.cpp /llama.cpp && \
-    cd /llama.cpp && \
-    pip install -r requirements.txt && \
-    cmake -B build -DGGML_CUDA=ON && \
-    cmake --build build --config Release -j$(nproc)
+RUN RELEASE=$(curl -s https://api.github.com/repos/ggerganov/llama.cpp/releases/latest | grep '"tag_name"' | cut -d'"' -f4) && \
+    echo "Downloading llama.cpp $RELEASE" && \
+    curl -L "https://github.com/ggerganov/llama.cpp/releases/download/${RELEASE}/llama-${RELEASE}-bin-ubuntu-x64.zip" \
+        -o /tmp/llama.zip && \
+    unzip /tmp/llama.zip -d /llama.cpp && \
+    chmod +x /llama.cpp/build/bin/* && \
+    rm /tmp/llama.zip
+
+# Python scripts for conversion (no build needed, just the repo scripts)
+RUN pip install gguf numpy
 
 RUN mkdir /output
 WORKDIR /workspace
