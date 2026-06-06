@@ -3,7 +3,7 @@ FROM nvidia/cuda:12.6.3-runtime-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
-    curl python3 python3-pip unzip && \
+    git curl python3 python3-pip tar && \
     rm -rf /var/lib/apt/lists/*
 
 RUN ln -s /usr/bin/python3 /usr/bin/python
@@ -12,16 +12,17 @@ RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/c
 
 RUN pip install -U heretic-llm
 
-RUN RELEASE=$(curl -s https://api.github.com/repos/ggerganov/llama.cpp/releases/latest | grep '"tag_name"' | cut -d'"' -f4) && \
-    echo "Downloading llama.cpp $RELEASE" && \
-    curl -L "https://github.com/ggerganov/llama.cpp/releases/download/${RELEASE}/llama-${RELEASE}-bin-ubuntu-x64.zip" \
-        -o /tmp/llama.zip && \
-    unzip /tmp/llama.zip -d /llama.cpp && \
+# Download pre-built llama.cpp CUDA binary (hardcoded release — update tag as needed)
+RUN curl -L "https://github.com/ggml-org/llama.cpp/releases/download/b9528/llama-b9528-bin-ubuntu-x64.tar.gz" \
+        -o /tmp/llama.tar.gz && \
+    mkdir -p /llama.cpp && \
+    tar -xzf /tmp/llama.tar.gz -C /llama.cpp && \
     chmod +x /llama.cpp/build/bin/* && \
-    rm /tmp/llama.zip
+    rm /tmp/llama.tar.gz
 
-# Python scripts for conversion (no build needed, just the repo scripts)
-RUN pip install gguf numpy
+# Shallow clone just for the Python conversion script
+RUN git clone --depth=1 https://github.com/ggml-org/llama.cpp /llama.cpp-src && \
+    pip install -r /llama.cpp-src/requirements/requirements-convert_hf_to_gguf.txt
 
 RUN mkdir /output
 WORKDIR /workspace
