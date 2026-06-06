@@ -87,7 +87,7 @@ quantize:
 	@echo ""
 	@echo "$(CYAN)$(BOLD)» [3/3] Quantizing to q4_0...$(RESET)"
 	@$(DOCKER_RUN) \
-		/llama.cpp/build/bin/llama-quantize \
+		llama-quantize \
 			/output/$(MODEL_SLUG)-heretic-f16.gguf \
 			/output/$(MODEL_SLUG)-heretic-q4_0.gguf \
 			q4_0 || { \
