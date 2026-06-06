@@ -2,6 +2,10 @@ IMAGE_NAME   := heretic
 OUTPUT_DIR   := $(HOME)/output
 HF_TOKEN     ?=
 
+# Extra args forwarded to Heretic (e.g. HERETIC_ARGS="--quantization bnb_4bit"
+# to lower VRAM use on large models).
+HERETIC_ARGS ?=
+
 # Extract short model name from full HF path (e.g. google/gemma-4-E2B-it -> gemma-4-E2B-it)
 MODEL        := $(word 2, $(MAKECMDGOALS))
 MODEL_SLUG   := $(notdir $(MODEL))
@@ -60,11 +64,14 @@ build-image:
 	fi
 
 # ─── Step 1: decensor with Heretic ────────────────────────────────────────────
+# Heretic has no "save to folder" flag; it is interactive. run_heretic.py drives
+# the real Heretic pipeline non-interactively and saves the decensored model.
 decensor:
 	@echo ""
 	@echo "$(CYAN)$(BOLD)» [1/3] Decensoring $(MODEL)...$(RESET)"
 	@$(DOCKER_RUN) \
-		heretic $(MODEL) --output-dir /output/decensored --save-model || { \
+		python3.11 /usr/local/bin/run_heretic.py \
+			$(MODEL) /output/decensored $(HERETIC_ARGS) || { \
 		echo "$(RED)Heretic decensor step failed.$(RESET)"; exit 1; \
 	}
 	@echo "$(GREEN)Decensored model saved to $(DECENSORED_DIR)$(RESET)"
@@ -74,7 +81,7 @@ convert:
 	@echo ""
 	@echo "$(CYAN)$(BOLD)» [2/3] Converting to f16 GGUF...$(RESET)"
 	@$(DOCKER_RUN) \
-		python /llama.cpp/convert_hf_to_gguf.py \
+		convert-hf-to-gguf \
 			/output/decensored \
 			--outfile /output/$(MODEL_SLUG)-heretic-f16.gguf \
 			--outtype f16 || { \

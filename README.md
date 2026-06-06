@@ -17,7 +17,7 @@ Given any HuggingFace model ID, the pipeline will:
 |---|---|
 | Ubuntu Linux | Tested on Ubuntu 22.04+ |
 | NVIDIA GPU | Minimum ~16GB VRAM for 7–8B models, 24GB (e.g. RTX 4090) recommended |
-| NVIDIA Driver | 595+ / CUDA 13.x |
+| NVIDIA Driver | 555+ (the image uses the CUDA 12.6 runtime via `nvidia/cuda:12.6.2-devel`) |
 | Docker | With `nvidia-container-toolkit` installed |
 | `make` | Standard on Ubuntu (`sudo apt install make`) |
 
@@ -40,10 +40,17 @@ Clone this repo (or copy the `Dockerfile` and `Makefile` into a directory):
 ```
 your-dir/
 ├── Dockerfile
-└── Makefile
+├── Makefile
+└── run_heretic.py   # non-interactive driver for Heretic (required)
 ```
 
 No other setup is needed. The Docker image is built automatically on first use.
+
+> **Note:** Heretic is normally an interactive program — after optimizing it
+> opens menus to pick a trial and save the model. `run_heretic.py` drives the
+> real Heretic pipeline non-interactively, automatically selecting the
+> fewest-refusals trial and saving the decensored model. This is why there is
+> no `--save-model` flag in the `decensor` step.
 
 ---
 
@@ -141,13 +148,23 @@ sudo systemctl restart docker
 ```
 
 **Out of VRAM on large models**
-Add `--quantization bnb_4bit` to the `heretic` command inside the `Makefile`'s `decensor` step. This reduces VRAM usage during the abliteration pass at a small quality cost.
+Pass extra Heretic flags via `HERETIC_ARGS`, e.g.:
+```bash
+HERETIC_ARGS="--quantization bnb_4bit" make heretic <model>
+```
+This reduces VRAM usage during the abliteration pass at a small quality cost. You can also lower the trial count for a faster run, e.g. `HERETIC_ARGS="--n-trials 50"`.
 
 **HuggingFace 401 / access denied**
 The model is gated. Pass your token: `HF_TOKEN=hf_xxx make heretic <model>`
 
-**cmake / CUDA build errors**
-Ensure you're using the `nvidia/cuda:12.6.3-devel-ubuntu22.04` base image in your `Dockerfile` (the `-devel` variant includes `nvcc` and the CUDA headers required to build llama.cpp).
+**`torch.cuda.is_available()` is False / runs on CPU**
+This usually means a dependency downgraded PyTorch to a CPU build. The
+`Dockerfile` installs the llama.cpp converter's non-torch dependencies first and
+installs Heretic **last** so its GPU `torch` and version pins win. If you edit
+the `Dockerfile`, keep that ordering. Verify with:
+```bash
+docker run --rm --gpus all heretic python3.11 -c "import torch; print(torch.cuda.is_available())"
+```
 
 ---
 
